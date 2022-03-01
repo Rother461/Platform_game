@@ -1,0 +1,171 @@
+import game_module as gm
+import pygame
+from pygame.locals import *
+
+screen = pygame.display.set_mode(gm.SIZESCREEN)
+# ładowanie listy odzwierciedlającej mape
+game_map = gm.load_map('lvl1')
+# rozmiar bloku
+tile_size = 50
+
+
+# okno podzielone na 20 blokow
+
+
+class Player:
+    def __init__(self, x, y):
+        self.images_right = []
+        self.images_left = []
+        self.images_idle_right = []
+        self.images_idle_left = []
+        self.images_jump_right = []
+        self.images_jump_left = []
+        self.index = 0
+        self.index_jump = 0
+        # predkosc animacji
+        self.counter = 0
+        self.counter_jump = 0
+        # animacja
+        for number in range(1, 16):
+            player_img_right = pygame.image.load(f'img/Run ({number}).png')
+            player_img_jump_right = pygame.image.load(f'img/Jump ({number}).png')
+            iddle_img_right = pygame.image.load(f'img/Idle ({number}).png')
+
+            iddle_img_right = pygame.transform.scale(iddle_img_right, (60, 100))
+            iddle_img_left = pygame.transform.flip(iddle_img_right, True, False)
+
+            player_img_jump_right = pygame.transform.scale(player_img_jump_right, (60, 100))
+            player_img_jump_left = pygame.transform.flip(player_img_jump_right, True, False)
+
+            player_img_right = pygame.transform.scale(player_img_right, (60, 100))
+            player_img_left = pygame.transform.flip(player_img_right, True, False)  # odbicie lustrzane skoku po X
+
+            self.images_jump_right.append(player_img_jump_right)
+            self.images_jump_left.append(player_img_jump_left)
+            self.images_right.append(player_img_right)
+            self.images_left.append(player_img_left)
+            self.images_idle_right.append(iddle_img_right)
+            self.images_idle_left.append(iddle_img_left)
+
+        self.image = self.images_right[self.index]
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.air_speed = 0
+        self.jump = False
+        self.course = 0  # kierunek zwrotu
+
+    def update(self):
+        movement_x = 0
+        movement_y = 0
+        walk_timer = 3
+        jump_timer = 3
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            movement_x -= 5
+            self.counter += 1
+            self.course = -1
+        if keys[pygame.K_RIGHT]:
+            movement_x += 5
+            self.counter += 1
+            self.course = 1
+        if keys[pygame.K_LEFT] == False and keys[pygame.K_RIGHT] == False:
+            self.counter = 0  # wyswietlanie pierwszego zdjęcia podczas stania
+            self.index = 0
+            self.image = self.images_idle_right[self.index]
+            print(self.images_idle_right[self.index])
+        if self.course == 1:
+            self.image = self.images_right[self.index]
+        if self.course == -1:
+            self.image = self.images_left[self.index]
+        if keys[pygame.K_SPACE] and self.jump == False:
+            self.air_speed = -15
+            self.jump = True
+            self.counter_jump += 1
+        if not keys[pygame.K_SPACE]:
+            self.jump = False
+
+        if self.counter > walk_timer:
+            self.counter = 0
+            self.index += 1
+            if self.index >= len(self.images_right):
+                self.index = 0
+            if self.course == 1:
+                self.image = self.images_right[self.index]
+            if self.course == -1:
+                self.image = self.images_left[self.index]
+
+        self.air_speed += 1
+        if self.air_speed > 10:
+            self.air_speed = 10
+        movement_y += self.air_speed
+
+        if self.counter_jump > jump_timer:
+            self.counter_jump = 0
+            self.index_jump += 1
+            if self.index >= len(self.images_jump_right):
+                self.index_jump = 0
+            if self.course == -1:
+                self.image = self.images_jump_left[self.index_jump]
+            else:
+                self.image = self.images_jump_right[self.index_jump]
+
+        # wspolrzedne gracza
+        self.rect.x += movement_x
+        self.rect.y += movement_y
+
+        if self.rect.bottom > screen.get_height():
+            self.rect.bottom = screen.get_height()
+
+        # rysowanie gracza na ekranie
+        screen.blit(self.image, self.rect)
+
+
+class World:
+    def __init__(self, data):
+        self.tile_list = []
+        row_count = 0
+        for row in data:
+            col_count = 0
+            for tile in row:
+                if tile == '1':
+                    img = pygame.transform.scale(gm.dirt_img, (tile_size, tile_size))
+                    img_rect = img.get_rect()
+                    img_rect.x = col_count * tile_size
+                    img_rect.y = row_count * tile_size
+                    tile = (img, img_rect)
+                    self.tile_list.append(tile)
+                if tile == '2':
+                    img = pygame.transform.scale(gm.grass_img, (tile_size, tile_size))
+                    img_rect = img.get_rect()
+                    img_rect.x = col_count * tile_size
+                    img_rect.y = row_count * tile_size
+                    tile = (img, img_rect)
+                    self.tile_list.append(tile)
+                col_count += 1
+            row_count += 1
+
+    def draw(self):
+        for tile in self.tile_list:
+            screen.blit(tile[0], tile[1])
+
+
+# tworzenie gracza
+player = Player(100, screen.get_height() - 125)
+# tworzenie mapy
+world = World(game_map)
+run = True
+while run:
+    gm.clock.tick(gm.fps)
+
+    screen.blit(gm.bg, (0, 0))
+    screen.blit(gm.sun_img, (100, 100))
+
+    world.draw()
+    player.update()
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            run = False
+
+    pygame.display.update()
